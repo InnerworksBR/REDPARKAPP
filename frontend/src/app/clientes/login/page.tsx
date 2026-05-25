@@ -5,25 +5,78 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { ArrowLeft, CarFront } from "lucide-react";
+import { ArrowLeft, CarFront, AlertCircle } from "lucide-react";
+import { supabase } from "@/lib/supabase";
 
 export default function LoginPage() {
   const router = useRouter();
   const [identifier, setIdentifier] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
-    setTimeout(() => {
-      setLoading(false);
-      if (identifier.includes("admin")) {
+    setError("");
+
+    try {
+      let email = identifier;
+
+      // Se não for um formato de e-mail (não contiver '@'), tratamos como CPF
+      if (!identifier.includes("@")) {
+        const cleanCpf = identifier.replace(/[^\d]/g, "");
+
+        if (!cleanCpf) {
+          throw new Error("Por favor, digite um CPF ou Email válido.");
+        }
+
+        // Buscar email correspondente na tabela profiles
+        const { data: profile, error: profileError } = await supabase
+          .from("profiles")
+          .select("email")
+          .eq("cpf", cleanCpf)
+          .maybeSingle();
+
+        if (profileError || !profile?.email) {
+          throw new Error("CPF não encontrado no sistema.");
+        }
+
+        email = profile.email;
+      }
+
+      // Efetuar login no Supabase Auth
+      const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+      });
+
+      if (authError) {
+        throw new Error("Credenciais inválidas. Verifique os dados digitados.");
+      }
+
+      // Buscar a role do usuário logado
+      const { data: profile, error: profileError } = await supabase
+        .from("profiles")
+        .select("role")
+        .eq("id", authData.user?.id)
+        .maybeSingle();
+
+      if (profileError || !profile) {
+        throw new Error("Erro ao carregar o perfil de usuário.");
+      }
+
+      // Redirecionamento baseado no papel do usuário
+      if (profile.role === "admin") {
         router.push("/admin/dashboard");
       } else {
         router.push("/dashboard");
       }
-    }, 1500);
+    } catch (err: any) {
+      setError(err.message || "Erro inesperado ao realizar login.");
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -41,6 +94,13 @@ export default function LoginPage() {
         <p className="text-gray-500 dark:text-gray-400 mb-8">
           Acesse sua conta para gerenciar seu estacionamento.
         </p>
+
+        {error && (
+          <div className="flex items-center gap-3 bg-red-50 dark:bg-red-950/30 text-red-600 dark:text-red-400 p-4 rounded-xl border border-red-150 dark:border-red-900/50 mb-6 text-sm font-medium animate-in shake duration-300">
+            <AlertCircle size={20} className="shrink-0" />
+            <span>{error}</span>
+          </div>
+        )}
 
         <form onSubmit={handleLogin} className="flex flex-col gap-5">
           <div className="space-y-1">
@@ -84,3 +144,4 @@ export default function LoginPage() {
     </main>
   );
 }
+
