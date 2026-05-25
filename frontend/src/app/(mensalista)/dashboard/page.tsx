@@ -7,11 +7,28 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Car, CreditCard, AlertCircle, CheckCircle2 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 
+type Profile = {
+  nome_completo?: string | null;
+};
+
+type Veiculo = {
+  foto_url?: string | null;
+  modelo?: string | null;
+  placa?: string | null;
+};
+
+type Mensalidade = {
+  status?: string | null;
+  vencimento?: string | null;
+  valor?: number | string | null;
+};
+
 export default function DashboardPage() {
   const [loading, setLoading] = useState(true);
-  const [profile, setProfile] = useState<any>(null);
-  const [veiculo, setVeiculo] = useState<any>(null);
-  const [mensalidade, setMensalidade] = useState<any>(null);
+  const [profile, setProfile] = useState<Profile | null>(null);
+  const [veiculo, setVeiculo] = useState<Veiculo | null>(null);
+  const [mensalidade, setMensalidade] = useState<Mensalidade | null>(null);
+  const [failedVehicleImageUrl, setFailedVehicleImageUrl] = useState("");
 
   useEffect(() => {
     const fetchDashboardData = async () => {
@@ -73,11 +90,12 @@ export default function DashboardPage() {
     : "--/--/----";
   
   const displayValue = mensalidade?.valor 
-    ? `R$ ${parseFloat(mensalidade.valor).toFixed(2).replace(".", ",")}` 
+    ? `R$ ${Number(mensalidade.valor).toFixed(2).replace(".", ",")}` 
     : "R$ 250,00";
 
   const StatusIcon = displayStatus === "Pago" ? CheckCircle2 : AlertCircle;
-  const carImage = veiculo?.foto_url || "https://images.unsplash.com/photo-1590362891991-f761595183db?auto=format&fit=crop&q=80&w=800";
+  const carImage = typeof veiculo?.foto_url === "string" ? veiculo.foto_url.trim() : "";
+  const showCarImage = carImage.length > 0 && failedVehicleImageUrl !== carImage;
   const carModel = veiculo?.modelo || "Modelo não cadastrado";
   const carPlate = veiculo?.placa || "S/ PLACA";
 
@@ -97,12 +115,22 @@ export default function DashboardPage() {
 
       <div className="space-y-6">
         <Card className="overflow-hidden border-0 shadow-lg">
-          <div className="h-40 w-full relative bg-gray-250 dark:bg-neutral-800 flex items-center justify-center">
-            <img 
-              src={carImage} 
-              alt="Carro do usuário" 
-              className="w-full h-full object-cover"
-            />
+          <div className="h-40 w-full relative bg-neutral-800 flex items-center justify-center overflow-hidden">
+            {showCarImage ? (
+              <img 
+                src={carImage} 
+                alt="Carro do usuário" 
+                className="w-full h-full object-cover"
+                onError={() => {
+                  console.warn("Imagem do veículo não carregou", { foto_url: carImage });
+                  setFailedVehicleImageUrl(carImage);
+                }}
+              />
+            ) : (
+              <div className="absolute inset-0 bg-[radial-gradient(circle_at_20%_20%,rgba(239,68,68,0.35),transparent_34%),linear-gradient(135deg,#111827,#525252)] flex items-center justify-center">
+                <Car className="h-16 w-16 text-white/35" strokeWidth={1.5} />
+              </div>
+            )}
             <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent" />
             <div className="absolute bottom-4 left-4 right-4 text-white">
               <p className="text-sm font-medium opacity-80">Veículo Cadastrado</p>

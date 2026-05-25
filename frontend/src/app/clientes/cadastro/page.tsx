@@ -8,6 +8,37 @@ import { Input } from "@/components/ui/input";
 import { ArrowLeft, UploadCloud, AlertCircle } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 
+type ErrorWithDetails = Error & {
+  status?: number;
+  code?: string;
+};
+
+const isRateLimitError = (error?: ErrorWithDetails | null) => {
+  const message = error?.message?.toLowerCase() ?? "";
+
+  return (
+    error?.status === 429 ||
+    message.includes("rate limit") ||
+    message.includes("too many")
+  );
+};
+
+const getAuthErrorMessage = (error?: ErrorWithDetails | null) => {
+  if (isRateLimitError(error)) {
+    return "Limite do Supabase Auth atingido (HTTP 429). Aguarde alguns minutos e tente novamente. Em desenvolvimento, isso tambem pode acontecer por limite de envio de email do projeto, mesmo em uma maquina nova.";
+  }
+
+  return error?.message || "Erro ao criar conta. Verifique suas credenciais.";
+};
+
+const getErrorMessage = (error: unknown) => {
+  if (error instanceof Error) {
+    return error.message;
+  }
+
+  return "Erro ao realizar cadastro.";
+};
+
 export default function CadastroPage() {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
@@ -69,10 +100,16 @@ export default function CadastroPage() {
       });
 
       if (authError || !authData.user) {
-        if (authError?.status === 429 || authError?.message?.includes("rate")) {
-          throw new Error("Muitas tentativas de cadastro. Por favor, aguarde uma hora ou tente com outro IP.");
+        if (authError) {
+          console.error("Erro no cadastro Supabase Auth", {
+            status: authError.status,
+            code: authError.code,
+            name: authError.name,
+            message: authError.message,
+          });
         }
-        throw new Error(authError?.message || "Erro ao criar conta. Verifique suas credenciais.");
+
+        throw new Error(getAuthErrorMessage(authError));
       }
 
       const userId = authData.user.id;
@@ -86,17 +123,21 @@ export default function CadastroPage() {
 
         const { error: uploadError } = await supabase.storage
           .from("vehicles")
-          .upload(filePath, fotoCarro);
+          .upload(filePath, fotoCarro, {
+            contentType: fotoCarro.type,
+            upsert: true,
+          });
 
         if (uploadError) {
           console.error("Erro no upload da imagem:", uploadError);
-        } else {
-          // Obter URL pública
-          const { data: urlData } = supabase.storage
-            .from("vehicles")
-            .getPublicUrl(filePath);
-          fotoUrl = urlData.publicUrl;
+          throw new Error("Não foi possível enviar a foto do veículo. Verifique se o bucket 'vehicles' existe no Supabase e se as políticas de Storage foram aplicadas.");
         }
+
+        // Obter URL pública
+        const { data: urlData } = supabase.storage
+          .from("vehicles")
+          .getPublicUrl(filePath);
+        fotoUrl = urlData.publicUrl;
       }
 
       // 3. Cadastrar veículo associado
@@ -137,8 +178,8 @@ export default function CadastroPage() {
 
       // Login bem sucedido pós cadastro
       router.push("/dashboard");
-    } catch (err: any) {
-      setError(err.message || "Erro ao realizar cadastro.");
+    } catch (err: unknown) {
+      setError(getErrorMessage(err));
     } finally {
       setLoading(false);
     }
