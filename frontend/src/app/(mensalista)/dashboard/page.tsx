@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { Car, CreditCard, AlertCircle, CheckCircle2 } from "lucide-react";
+import { Car, CreditCard, AlertCircle, CheckCircle2, LogOut, Edit2 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 
 type Profile = {
@@ -141,6 +141,13 @@ export default function DashboardPage() {
                 </div>
               </div>
             </div>
+            <div className="absolute top-3 right-3">
+              <Link href="/veiculo">
+                <Button variant="secondary" size="icon" className="h-8 w-8 rounded-full bg-white/20 hover:bg-white/40 text-white border-0 backdrop-blur-sm shadow-sm">
+                  <Edit2 size={14} />
+                </Button>
+              </Link>
+            </div>
           </div>
         </Card>
 
@@ -181,6 +188,17 @@ export default function DashboardPage() {
             Ticket 
           </Button>
         </Link>
+        <Button 
+          variant="ghost" 
+          className="w-full mt-2 text-gray-500 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-950/30"
+          onClick={async () => {
+            await supabase.auth.signOut();
+            window.location.href = '/clientes/login';
+          }}
+        >
+          <LogOut className="mr-2 h-5 w-5" />
+          Sair da Conta
+        </Button>
       </div>
     </main>
   );

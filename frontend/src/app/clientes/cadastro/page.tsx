@@ -24,11 +24,17 @@ const isRateLimitError = (error?: ErrorWithDetails | null) => {
 };
 
 const getAuthErrorMessage = (error?: ErrorWithDetails | null) => {
-  if (isRateLimitError(error)) {
-    return "Limite do Supabase Auth atingido (HTTP 429). Aguarde alguns minutos e tente novamente. Em desenvolvimento, isso tambem pode acontecer por limite de envio de email do projeto, mesmo em uma maquina nova.";
+  if (error?.status === 504 || error?.name === 'AuthRetryableFetchError') {
+    return "Tempo limite excedido ao tentar conectar ao Supabase (HTTP 504). Isso frequentemente ocorre se o limite de envio de e-mails de confirmação do Supabase foi atingido. Tente desativar 'Confirm Email' no painel do Supabase (Authentication -> Providers -> Email).";
   }
 
-  return error?.message || "Erro ao criar conta. Verifique suas credenciais.";
+  if (isRateLimitError(error)) {
+    return "Limite do Supabase Auth atingido (HTTP 429). Aguarde alguns minutos e tente novamente. Em desenvolvimento, isso tambem pode acontecer por limite de envio de email do projeto.";
+  }
+
+  return error?.message && error.message !== '{}' 
+    ? error.message 
+    : "Erro ao criar conta. Verifique suas credenciais e a configuração do Supabase.";
 };
 
 const getErrorMessage = (error: unknown) => {
@@ -101,11 +107,12 @@ export default function CadastroPage() {
 
       if (authError || !authData.user) {
         if (authError) {
+          const errDetails = authError as unknown as ErrorWithDetails;
           console.error("Erro no cadastro Supabase Auth", {
-            status: authError.status,
-            code: authError.code,
-            name: authError.name,
-            message: authError.message,
+            status: errDetails.status,
+            code: errDetails.code,
+            name: errDetails.name,
+            message: errDetails.message,
           });
         }
 
@@ -130,14 +137,15 @@ export default function CadastroPage() {
 
         if (uploadError) {
           console.error("Erro no upload da imagem:", uploadError);
-          throw new Error("Não foi possível enviar a foto do veículo. Verifique se o bucket 'vehicles' existe no Supabase e se as políticas de Storage foram aplicadas.");
+          // Ignoramos o erro de upload na hora do cadastro para não travar a criação do carro
+          // O usuário pode tentar fazer o upload novamente no painel.
+        } else {
+          // Obter URL pública
+          const { data: urlData } = supabase.storage
+            .from("vehicles")
+            .getPublicUrl(filePath);
+          fotoUrl = urlData.publicUrl;
         }
-
-        // Obter URL pública
-        const { data: urlData } = supabase.storage
-          .from("vehicles")
-          .getPublicUrl(filePath);
-        fotoUrl = urlData.publicUrl;
       }
 
       // 3. Cadastrar veículo associado

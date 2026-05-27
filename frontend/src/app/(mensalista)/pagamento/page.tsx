@@ -52,8 +52,10 @@ export default function PagamentoPage() {
         }
 
         // 2. Subscrever a escuta Realtime para alteração de mensalidades do usuário
+        // Adicionamos um sufixo aleatório para evitar conflitos no React StrictMode
+        const channelName = `mensalidades-user-${authUser.id}-${Math.random()}`;
         channel = supabase
-          .channel(`mensalidades-user-${authUser.id}`)
+          .channel(channelName)
           .on(
             "postgres_changes",
             {

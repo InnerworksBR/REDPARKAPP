@@ -26,8 +26,10 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="pt-BR" className="h-full antialiased">
-      <body className={`${inter.className} min-h-full flex flex-col bg-gray-50 dark:bg-neutral-950 text-gray-900 dark:text-gray-50`}>
-        {children}
+      <body className={`${inter.className} min-h-full flex justify-center bg-gray-200 dark:bg-neutral-900 text-gray-900 dark:text-gray-50`}>
+        <div className="w-full max-w-md min-h-screen flex flex-col bg-gray-50 dark:bg-neutral-950 relative shadow-2xl sm:border-x sm:border-gray-300 dark:sm:border-neutral-800">
+          {children}
+        </div>
       </body>
     </html>
   );

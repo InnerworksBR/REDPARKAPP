@@ -5,6 +5,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Users, TrendingUp, AlertTriangle, Clock, RefreshCw, Loader2, ArrowRight } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 
 export default function AdminDashboardPage() {
@@ -16,6 +17,7 @@ export default function AdminDashboardPage() {
     inadimplentes: 0,
   });
   const [atividades, setAtividades] = useState<any[]>([]);
+  const router = useRouter();
 
   const fetchAdminData = async () => {
     try {
@@ -27,23 +29,42 @@ export default function AdminDashboardPage() {
 
       if (errorMensalistas) throw errorMensalistas;
 
-      // 2. Somar receita prevista para o mês corrente
+      // 2. Somar receita prevista para o mês corrente (Caixa realizado + Pendentes do mês)
       const now = new Date();
       const firstDay = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split("T")[0];
       const lastDay = new Date(now.getFullYear(), now.getMonth() + 1, 0).toISOString().split("T")[0];
 
-      const { data: mensalidadesMes, error: errorMensalidades } = await supabase
+      // A. Valores pendentes que vencem neste mês
+      const { data: mensalidadesPendentes, error: errorMensalidades } = await supabase
         .from("mensalidades")
         .select("valor")
         .gte("vencimento", firstDay)
-        .lte("vencimento", lastDay);
+        .lte("vencimento", lastDay)
+        .neq("status", "Pago");
 
       if (errorMensalidades) throw errorMensalidades;
 
-      const receitaPrevistaSum = (mensalidadesMes || []).reduce(
+      // B. Valores já pagos (transações aprovadas) neste mês
+      const { data: transacoesMes, error: errorTransacoesMes } = await supabase
+        .from("transacoes")
+        .select("valor")
+        .gte("data_pagamento", firstDay + "T00:00:00Z")
+        .lte("data_pagamento", lastDay + "T23:59:59Z")
+        .eq("status", "Aprovado");
+
+      if (errorTransacoesMes) throw errorTransacoesMes;
+
+      const somaPendentes = (mensalidadesPendentes || []).reduce(
         (sum, m) => sum + parseFloat(m.valor || "0"),
         0
       );
+
+      const somaPagas = (transacoesMes || []).reduce(
+        (sum, t) => sum + parseFloat(t.valor || "0"),
+        0
+      );
+
+      const receitaPrevistaSum = somaPendentes + somaPagas;
 
       // 3. Contar número de mensalistas inadimplentes
       const { data: mensalidadesAbertas, error: errorAbertas } = await supabase
@@ -153,6 +174,7 @@ export default function AdminDashboardPage() {
       icon: Users,
       color: "text-blue-600 bg-blue-100 dark:bg-blue-900/30 dark:text-blue-400",
       description: "Clientes cadastrados",
+      href: "/admin/mensalistas",
     },
     {
       title: "Receita Prevista",
@@ -160,6 +182,7 @@ export default function AdminDashboardPage() {
       icon: TrendingUp,
       color: "text-emerald-600 bg-emerald-100 dark:bg-emerald-900/30 dark:text-emerald-400",
       description: `Faturamento de ${new Date().toLocaleDateString("pt-BR", { month: "long" })}`,
+      href: "/admin/receita",
     },
     {
       title: "Inadimplentes",
@@ -167,6 +190,7 @@ export default function AdminDashboardPage() {
       icon: AlertTriangle,
       color: "text-red-600 bg-red-100 dark:bg-red-900/30 dark:text-red-400",
       description: "Mensalistas com débitos",
+      href: "/admin/inadimplentes",
     },
   ];
 
@@ -192,7 +216,7 @@ export default function AdminDashboardPage() {
         {statCards.map((stat, i) => {
           const Icon = stat.icon;
           return (
-            <Card key={i} className="border-0 shadow-lg bg-white dark:bg-neutral-900 overflow-hidden relative group hover:scale-[1.01] transition-all duration-300">
+            <Card key={i} onClick={() => router.push(stat.href)} className="border-0 shadow-lg bg-white dark:bg-neutral-900 overflow-hidden relative group hover:scale-[1.01] transition-all duration-300 cursor-pointer">
               <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-red-500 to-orange-500 opacity-0 group-hover:opacity-100 transition-opacity" />
               <CardContent className="p-5 flex flex-col justify-between h-full gap-4">
                 <div className="flex justify-between items-center">
